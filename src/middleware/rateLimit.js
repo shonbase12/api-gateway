@@ -2,15 +2,41 @@ const rateLimit = require('express-rate-limit');
 const redis = require('redis');
 const client = redis.createClient();
 
+// Mock database for demonstration purposes
+const database = {
+    findMerchantById: async (id) => {
+        // Simulated database lookup
+        const merchants = [{ id: '1', name: 'Merchant One' }, { id: '2', name: 'Merchant Two' }];
+        return merchants.find(merchant => merchant.id === id) || null;
+    },
+    findPlanByMerchantId: async (id) => {
+        // Simulated plan retrieval
+        const plans = [{ merchantId: '1', plan: 'basic' }, { merchantId: '2', plan: 'premium' }];
+        const plan = plans.find(p => p.merchantId === id);
+        return plan ? plan.plan : null;
+    },
+};
+
 // Helper function to validate merchant ID
 const validateMerchantId = async (merchantId) => {
-    // Logic to validate if the merchant ID exists in the database
-    // Return true if valid, false otherwise
+    try {
+        const merchant = await database.findMerchantById(merchantId);
+        return merchant !== null; // Return true if merchant exists, false otherwise
+    } catch (error) {
+        console.error('Error validating merchant ID:', error);
+        return false;
+    }
 };
 
 // Helper function to retrieve merchant plan
 const getMerchantPlan = async (merchantId) => {
-    // Logic to fetch the merchant's plan from the database
+    try {
+        const plan = await database.findPlanByMerchantId(merchantId);
+        return plan || null; // Return plan if found, otherwise return null
+    } catch (error) {
+        console.error('Error retrieving merchant plan:', error);
+        return null;
+    }
 };
 
 // Middleware to set dynamic rate limits based on merchant pricing plan
@@ -26,7 +52,7 @@ const dynamicRateLimit = async (req, res, next) => {
             return res.status(400).send('Invalid Merchant ID.');
         }
 
-        const plan = await getMerchantPlan(merchantId); // Function to retrieve the merchant's pricing plan
+        const plan = await getMerchantPlan(merchantId);
         if (!plan) {
             return res.status(400).send('Invalid pricing plan.');
         }
@@ -48,8 +74,8 @@ const dynamicRateLimit = async (req, res, next) => {
         const limiter = rateLimit({
             windowMs: 60 * 1000, // 1 minute
             max: limit,
-            keyGenerator: (req) => req.user.merchantId, // Use merchant ID as key
-            store: new rateLimit.RedisStore({ client }), // Store in Redis
+            keyGenerator: (req) => req.user.merchantId,
+            store: new rateLimit.RedisStore({ client }),
             message: 'Too many requests from this merchant, please try again later.',
         });
 
@@ -60,4 +86,4 @@ const dynamicRateLimit = async (req, res, next) => {
     }
 };
 
-module.exports = { dynamicRateLimit };
+module.exports = { dynamicRateLimit, validateMerchantId, getMerchantPlan };
