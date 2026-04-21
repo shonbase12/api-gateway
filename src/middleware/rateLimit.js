@@ -37,6 +37,9 @@ const dynamicRateLimit = async (req, res, next) => {
             message: 'Too many requests from this merchant, please try again later.',
         });
 
+        // Log rate limit usage
+        console.log(`Merchant ID: ${merchantId}, Plan: ${plan}, Limit: ${limit}`);
+
         return limiter(req, res, next);
     } catch (error) {
         console.error('Error in rate limiting middleware:', error);
@@ -44,4 +47,10 @@ const dynamicRateLimit = async (req, res, next) => {
     }
 };
 
-module.exports = { dynamicRateLimit };
+// Optional: Fetch rate limits from a configuration
+const rateLimits = {
+    basic: 100,
+    premium: 500,
+};
+
+module.exports = { dynamicRateLimit, rateLimits };
