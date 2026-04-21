@@ -44,4 +44,17 @@ const dynamicRateLimit = async (req, res, next) => {
     }
 };
 
-module.exports = { dynamicRateLimit };
+// Logging for rate limit hits
+const logger = require('winston');
+logger.configure({
+    transports: [
+        new logger.transports.Console(),
+    ],
+});
+
+// Enhanced logging for rate limit notifications
+const notifyMerchant = (merchantId, message) => {
+    logger.info(`Merchant ${merchantId}: ${message}`);
+};
+
+module.exports = { dynamicRateLimit, notifyMerchant };
