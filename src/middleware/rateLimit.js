@@ -2,13 +2,56 @@ const rateLimit = require('express-rate-limit');
 const redis = require('redis');
 const { getMerchantById, getPlanByMerchantId } = require('./database'); // Replace with actual database functions
 
-const client = redis.createClient();
+const REDIS_RECONNECT_INTERVAL_MS = 5000;
 
-// Enhanced error handling for Redis connection
-client.on('error', (err) => {
-    console.error('Redis connection error:', err);
-    // Additional logging or alerting can be added here
+// Create Redis client with retry strategy
+const client = redis.createClient({
+    socket: {
+        reconnectStrategy: (retries) => {
+            if (retries > 10) {
+                return new Error('Retry limit reached');
+            }
+            const delay = Math.min(retries * 100, REDIS_RECONNECT_INTERVAL_MS);
+            console.log(`Redis reconnect attempt in ${delay}ms`);
+            return delay;
+        },
+        connectTimeout: 5000
+    }
 });
+
+let redisConnected = false;
+
+client.on('connect', () => {
+    redisConnected = true;
+    console.info('Connected to Redis');
+});
+
+client.on('ready', () => {
+    console.info('Redis client ready');
+});
+
+client.on('error', (err) => {
+    redisConnected = false;
+    console.error('Redis connection error:', err);
+});
+
+client.on('end', () => {
+    redisConnected = false;
+    console.warn('Redis connection closed');
+});
+
+// Function to check Redis connection health
+const checkRedisConnection = async () => {
+    if (!redisConnected) {
+        throw new Error('Redis not connected');
+    }
+    try {
+        await client.ping();
+    } catch (err) {
+        redisConnected = false;
+        throw err;
+    }
+};
 
 // Configuration for rate limits
 const rateLimits = {
@@ -48,7 +91,9 @@ const dynamicRateLimit = async (req, res, next) => {
 
         const limit = rateLimits[plan];
         let limiter;
+
         try {
+            await checkRedisConnection();
             limiter = rateLimit({
                 windowMs: 60 * 1000, // 1 minute
                 max: limit,
@@ -57,8 +102,7 @@ const dynamicRateLimit = async (req, res, next) => {
                 message: 'Too many requests from this merchant, please try again later.',
             });
         } catch (redisError) {
-            console.error('Error setting up rate limiter with Redis store:', redisError);
-            console.warn('Falling back to in-memory rate limiter due to Redis store error.');
+            console.error('Redis error or disconnected, falling back to in-memory rate limiter:', redisError);
             // Fallback to in-memory store
             limiter = rateLimit({
                 windowMs: 60 * 1000,
