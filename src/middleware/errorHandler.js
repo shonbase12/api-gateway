@@ -1,6 +1,3 @@
-const express = require('express');
-const app = express();
-
 // Custom error classes
 class AppError extends Error {
     constructor(message, status, code, details) {
@@ -29,7 +26,7 @@ class NotFoundError extends AppError {
     }
 }
 
-// Structured logging function
+// Structured logging function with requestId if present
 function logError(err, req) {
     const logDetails = {
         message: err.message,
@@ -39,12 +36,13 @@ function logError(err, req) {
         path: req.originalUrl,
         method: req.method,
         timestamp: new Date().toISOString(),
+        requestId: req.headers['x-request-id'] || null,
     };
     console.error(JSON.stringify(logDetails));
 }
 
-// Error handling middleware
-app.use((err, req, res, next) => {
+// Error handling middleware function
+function errorHandler(err, req, res, next) {
     logError(err, req);
     res.status(err.status || 500).json({
         error: {
@@ -54,10 +52,10 @@ app.use((err, req, res, next) => {
             details: err.details || null,
         },
     });
-});
+}
 
 module.exports = {
-    app,
+    errorHandler,
     AppError,
     ValidationError,
     AuthenticationError,
