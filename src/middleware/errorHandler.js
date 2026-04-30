@@ -1,3 +1,5 @@
+const { sendToCentralizedLog, incrementMetric } = require('../observability'); // hypothetical observability utilities
+
 // Custom error classes
 class AppError extends Error {
     constructor(message, status, code, details) {
@@ -38,7 +40,12 @@ function logError(err, req) {
         timestamp: new Date().toISOString(),
         requestId: req.headers['x-request-id'] || null,
     };
+    // Send to centralized logging system
+    sendToCentralizedLog(logDetails);
+    // Also log to console as fallback
     console.error(JSON.stringify(logDetails));
+    // Increment error metric
+    incrementMetric('errors', {code: err.code || 'APP_ERROR', status: err.status || 500});
 }
 
 // Error handling middleware function
