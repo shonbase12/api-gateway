@@ -42,13 +42,25 @@ const dynamicRateLimit = async (req, res, next) => {
         }
 
         const limit = rateLimits[plan];
-        const limiter = rateLimit({
-            windowMs: 60 * 1000, // 1 minute
-            max: limit,
-            keyGenerator: (req) => req.user.merchantId,
-            store: new rateLimit.RedisStore({ client }),
-            message: 'Too many requests from this merchant, please try again later.',
-        });
+        let limiter;
+        try {
+            limiter = rateLimit({
+                windowMs: 60 * 1000, // 1 minute
+                max: limit,
+                keyGenerator: (req) => req.user.merchantId,
+                store: new rateLimit.RedisStore({ client }),
+                message: 'Too many requests from this merchant, please try again later.',
+            });
+        } catch (redisError) {
+            console.error('Error setting up rate limiter with Redis store:', redisError);
+            // Fallback to in-memory store
+            limiter = rateLimit({
+                windowMs: 60 * 1000,
+                max: limit,
+                keyGenerator: (req) => req.user.merchantId,
+                message: 'Too many requests from this merchant, please try again later.',
+            });
+        }
 
         limiter(req, res, () => {
             clearTimeout(timeout);
