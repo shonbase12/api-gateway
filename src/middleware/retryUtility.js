@@ -1,6 +1,7 @@
 const defaultInitialBackoff = 1000; // 1 second
 const defaultMaxBackoff = 30000; // 30 seconds
 const defaultMaxRetries = 3;
+const defaultTimeout = 60000; // 60 seconds overall timeout
 
 /**
  * Sleep for the given milliseconds
@@ -12,7 +13,16 @@ function sleep(ms) {
 }
 
 /**
- * RetryUtility class for retrying async operations with exponential backoff and jitter
+ * Promise that rejects after the given timeout
+ * @param {number} ms
+ * @returns {Promise<never>}
+ */
+function timeoutReject(ms) {
+  return new Promise((_, reject) => setTimeout(() => reject(new Error('Operation timed out')), ms));
+}
+
+/**
+ * RetryUtility class for retrying async operations with exponential backoff and jitter with timeout
  */
 class RetryUtility {
   /**
@@ -21,30 +31,38 @@ class RetryUtility {
    * @param {number} options.initialBackoff initial backoff in ms
    * @param {number} options.maxBackoff max backoff in ms
    * @param {number} options.maxRetries max retry attempts
+   * @param {number} options.timeout max total time in ms before giving up
    * @param {(error: any) => boolean} options.retryCondition function to determine if error is retryable
    */
   constructor({
     initialBackoff = defaultInitialBackoff,
     maxBackoff = defaultMaxBackoff,
     maxRetries = defaultMaxRetries,
+    timeout = defaultTimeout,
     retryCondition = () => true,
   } = {}) {
     this.initialBackoff = initialBackoff;
     this.maxBackoff = maxBackoff;
     this.maxRetries = maxRetries;
+    this.timeout = timeout;
     this.retryCondition = retryCondition;
   }
 
   /**
-   * Execute the async operation with retry logic
+   * Execute the async operation with retry logic and timeout
    * @param {() => Promise<any>} operation async function to retry
    * @returns {Promise<any>} result of the operation
-   * @throws error if all retries fail or error is not retryable
+   * @throws error if all retries fail or error is not retryable or timeout expires
    */
   async executeWithRetry(operation) {
+    const startTime = Date.now();
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+      const elapsedTime = Date.now() - startTime;
+      if (elapsedTime > this.timeout) {
+        throw new Error('Operation timed out');
+      }
       try {
-        return await operation();
+        return await Promise.race([operation(), timeoutReject(this.timeout - elapsedTime)]);
       } catch (error) {
         if (!this.retryCondition(error)) {
           throw error;
