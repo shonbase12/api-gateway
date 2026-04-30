@@ -22,17 +22,23 @@ class RetryUtility {
    * @param {number} options.maxBackoff max backoff in ms
    * @param {number} options.maxRetries max retry attempts
    * @param {(error: any) => boolean} options.retryCondition function to determine if error is retryable
+   * @param {(msg: string, meta?: Object) => void} options.logger logging function
+   * @param {() => string} options.correlationIdProvider function to get current correlation ID
    */
   constructor({
     initialBackoff = defaultInitialBackoff,
     maxBackoff = defaultMaxBackoff,
     maxRetries = defaultMaxRetries,
     retryCondition = () => true,
+    logger = console.warn,
+    correlationIdProvider = () => null,
   } = {}) {
     this.initialBackoff = initialBackoff;
     this.maxBackoff = maxBackoff;
     this.maxRetries = maxRetries;
     this.retryCondition = retryCondition;
+    this.logger = logger;
+    this.correlationIdProvider = correlationIdProvider;
   }
 
   /**
@@ -53,7 +59,13 @@ class RetryUtility {
           throw error;
         }
         const backoff = this.calculateBackoffWithJitter(attempt);
-        console.warn(`Attempt ${attempt} failed. Retrying in ${backoff}ms. Error: ${error.message || error}`);
+        const correlationId = this.correlationIdProvider();
+        const logMessage = `Attempt ${attempt} failed. Retrying in ${backoff}ms. Error: ${error.message || error}`;
+        if (correlationId) {
+          this.logger(`${logMessage} CorrelationId: ${correlationId}`);
+        } else {
+          this.logger(logMessage);
+        }
         await sleep(backoff);
       }
     }
