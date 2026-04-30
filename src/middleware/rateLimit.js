@@ -4,9 +4,10 @@ const { getMerchantById, getPlanByMerchantId } = require('./database'); // Repla
 
 const client = redis.createClient();
 
-// Error handling for Redis connection
+// Enhanced error handling for Redis connection
 client.on('error', (err) => {
-    console.error('Redis error:', err);
+    console.error('Redis connection error:', err);
+    // Additional logging or alerting can be added here
 });
 
 // Configuration for rate limits
@@ -19,6 +20,7 @@ const rateLimits = {
 // Middleware to set dynamic rate limits based on merchant pricing plan
 const dynamicRateLimit = async (req, res, next) => {
     const timeout = setTimeout(() => {
+        console.warn('Rate limiting middleware timed out.');
         return res.status(503).send('Service unavailable due to timeout.');
     }, 5000); // 5 seconds timeout
 
@@ -26,18 +28,21 @@ const dynamicRateLimit = async (req, res, next) => {
         const merchantId = req.user.merchantId; // Assuming merchant ID is available in the request
         if (!merchantId) {
             clearTimeout(timeout);
+            console.warn('Merchant ID missing in request.');
             return res.status(400).send('Merchant ID is required.');
         }
 
         const merchant = await getMerchantById(merchantId);
         if (!merchant) {
             clearTimeout(timeout);
+            console.warn(`Invalid Merchant ID: ${merchantId}`);
             return res.status(400).send('Invalid Merchant ID.');
         }
 
         const plan = await getPlanByMerchantId(merchantId);
         if (!plan || !rateLimits[plan]) {
             clearTimeout(timeout);
+            console.warn(`Invalid or unsupported pricing plan for Merchant ID: ${merchantId}`);
             return res.status(400).send('Invalid or unsupported pricing plan.');
         }
 
@@ -53,6 +58,7 @@ const dynamicRateLimit = async (req, res, next) => {
             });
         } catch (redisError) {
             console.error('Error setting up rate limiter with Redis store:', redisError);
+            console.warn('Falling back to in-memory rate limiter due to Redis store error.');
             // Fallback to in-memory store
             limiter = rateLimit({
                 windowMs: 60 * 1000,
