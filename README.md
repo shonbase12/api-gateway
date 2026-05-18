@@ -1,6 +1,4 @@
-# api-gateway
-
-NovaPay Public API Gateway
+# API Gateway
 
 The NovaPay API Gateway serves as a unified entry point for clients to access various NovaPay services. It is designed to handle authentication, rate limiting, and request routing to ensure efficient and secure communication between clients and backend services.
 
@@ -10,6 +8,7 @@ The NovaPay API Gateway serves as a unified entry point for clients to access va
 - **Rate Limiting**: Protects backend services from being overwhelmed by limiting the number of requests a client can make in a given time frame.
 - **Request Routing**: Directs incoming requests to the appropriate backend service based on the request path and method.
 - **Logging and Monitoring**: Tracks API usage and performance metrics to help identify issues and improve service quality.
+- **Timeout Management**: Configurable timeouts for requests to prevent hanging.
 
 ## Usage
 
